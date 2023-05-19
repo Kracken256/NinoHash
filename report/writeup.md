@@ -26,8 +26,8 @@ The permutation functions use bitwise XOR, left and right rotations, and additio
 #### Permutation Function 1
 
 ---
-$$
-\begin{align*}
+
+$$\begin{align*}
 d &\leftarrow d \oplus (((a \ll 32) \oplus (d \gg 32)) + a + 1) \\
 c &\leftarrow c \oplus (((b \ll 48) \oplus (c \gg 16)) + b + 1) \\
 b &\leftarrow b \oplus (((c \ll 32) \oplus (b \gg 32)) + c + 1) \\
@@ -36,8 +36,8 @@ a &\leftarrow a + (b \land \neg c) \\
 b &\leftarrow b + (c \land \neg d) \\
 c &\leftarrow c + (d \land \neg a) \\
 d &\leftarrow d + (a \land \neg b) \\
-\end{align*}
-$$
+\end{align*}$$
+
 ---
 
 #### Permutation Function 2
@@ -54,6 +54,7 @@ b &\leftarrow \text{ROTLEFT}(b, 29) \oplus \text{ROTRIGHT}(d, 3) \\
 c &\leftarrow \text{ROTLEFT}(c, 47) \oplus \text{ROTRIGHT}(b, 13) \\
 d &\leftarrow \text{ROTLEFT}(d, 59) \oplus \text{ROTRIGHT}(a, 23) \\
 \end{align*}$$
+
 ---
 
 #### Permutation Function 3
@@ -70,8 +71,8 @@ a &\leftarrow (a \oplus b) + (c \oplus d) \\
 b &\leftarrow (b \oplus c) + (d \oplus a) \\
 c &\leftarrow (c \oplus d) + (a \oplus b) \\
 d &\leftarrow (d \oplus a) + (b \oplus c) \\
-\end{align*}
-$$
+\end{align*}$$
+
 ---
 
 
