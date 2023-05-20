@@ -15,107 +15,94 @@
 
 #include "ninohash.h"
 
+#define NINO_NUM_ROUNDS 128
+
 #define ROTRIGHT(a, b) (((a) >> (b)) | ((a) << (64 - (b))))
-#define ROTLEFT(a, b) (((a) << (b)) | ((a) >> (64 - (b))))
 
-static inline void permute_box1(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d)
+#define permute_box1(a, b, c, d)                  \
+    *d ^= (((*a) << 32) & ~((*d) >> 32)) ^ ~(*a); \
+    *c ^= (((*b) << 48) & ~((*c) >> 16)) ^ ~(*b); \
+    *b ^= (((*c) << 32) & ~((*b) >> 32)) ^ ~(*c); \
+    *a ^= (((*d) << 16) & ~((*a) >> 48)) ^ ~(*d);
+
+#define permute_box2(a, b, c, d)                                      \
+    *a ^= ROTRIGHT(((*a ^ *b) & ~*c), 20) << (ROTRIGHT(*d, 12) % 14); \
+    *b ^= ROTRIGHT(((*b ^ *c) & ~*d), 26) << (ROTRIGHT(*a, 17) % 14); \
+    *c ^= ROTRIGHT(((*c ^ *d) & ~*a), 15) << (ROTRIGHT(*b, 29) % 14); \
+    *d ^= ROTRIGHT(((*d ^ *a) & ~*b), 37) << (ROTRIGHT(*c, 47) % 14);
+
+#define permute_box3(a, b, c, d)                               \
+    *a ^= ROTRIGHT(((*a & *b) ^ ~*c), (*d % 64)) >> (*a % 16); \
+    *b ^= ROTRIGHT(((*b & *c) ^ ~*d), (*c % 63)) >> (*b % 17); \
+    *c ^= ROTRIGHT(((*c & *d) ^ ~*a), (*b % 62)) >> (*c % 18); \
+    *d ^= ROTRIGHT(((*d & *a) ^ ~*b), (*a % 61)) >> (*d % 19);
+
+// process data in 256 bit chunks
+void nino256_init(nino256_CTX *ctx)
 {
-    *d ^= (((*a) << 32) ^ ((*d) >> 32)) + (*a) + 1;
-    *c ^= (((*b) << 48) ^ ((*c) >> 16)) + (*b) + 1;
-    *b ^= (((*c) << 32) ^ ((*b) >> 32)) + (*c) + 1;
-    *a ^= (((*d) << 16) ^ ((*a) >> 48)) + (*d) + 1;
-
-    // Additional mixing
-    *a += *b & ~*c;
-    *b += *c & ~*d;
-    *c += *d & ~*a;
-    *d += *a & ~*b;
+    memset(ctx, 0, sizeof(nino256_CTX));
+    ctx->state[0] = 0x6a09e667f3bcc908;
+    ctx->state[1] = 0xbb67ae8584caa73b;
+    ctx->state[2] = 0x3c6ef372fe94f82b;
+    ctx->state[3] = 0xa54ff53a5f1d36f1;
+    ctx->round_count = NINO_NUM_ROUNDS;
 }
 
-static inline void permute_box2(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d)
+// process data in 256 bit chunks
+static inline void nino256_transform(nino256_CTX *ctx, uint8_t *chunk)
 {
-    *a ^= ((*a ^ *b) ^ ~*c) << (*d % 7);
-    *b ^= ((*b ^ *c) ^ ~*d) << (*a % 7);
-    *c ^= ((*c ^ *d) ^ ~*a) << (*b % 7);
-    *d ^= ((*d ^ *a) ^ ~*b) << (*c % 7);
+    ctx->state[0] ^= *((uint64_t *)(chunk + 0));
+    ctx->state[1] ^= *((uint64_t *)(chunk + 8));
+    ctx->state[2] ^= *((uint64_t *)(chunk + 16));
+    ctx->state[3] ^= *((uint64_t *)(chunk + 24));
 
-    // Additional mixing
-    *a = ROTLEFT(*a, 17) ^ ROTRIGHT(*c, 7);
-    *b = ROTLEFT(*b, 29) ^ ROTRIGHT(*d, 3);
-    *c = ROTLEFT(*c, 47) ^ ROTRIGHT(*b, 13);
-    *d = ROTLEFT(*d, 59) ^ ROTRIGHT(*a, 23);
+    // permute the state
+    permute_box1(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
+    permute_box2(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
+    permute_box3(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
 }
 
-static inline void permute_box3(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d)
+void nino256_update(nino256_CTX *ctx, const uint8_t *buffer, size_t length)
 {
-    *a ^= ROTRIGHT(((*a ^ *b) ^ ~*c), (*d % 64)) >> (*a % 16);
-    *b ^= ROTRIGHT(((*b ^ *c) ^ ~*d), (*c % 64)) >> (*b % 16);
-    *c ^= ROTRIGHT(((*c ^ *d) ^ ~*a), (*b % 64)) >> (*c % 16);
-    *d ^= ROTRIGHT(((*d ^ *a) ^ ~*b), (*a % 64)) >> (*d % 16);
-
-    // Additional mixing
-    *a = (*a ^ *b) + (*c ^ *d);
-    *b = (*b ^ *c) + (*d ^ *a);
-    *c = (*c ^ *d) + (*a ^ *b);
-    *d = (*d ^ *a) + (*b ^ *c);
-}
-
-void nino256sum(const uint8_t *const buffer, uint32_t length, uint16_t rounds, uint8_t *hash)
-{
-    uint64_t state_1 = rounds;
-    uint64_t state_2 = rounds;
-    uint64_t state_3 = rounds;
-    uint64_t state_4 = rounds;
-
-    // Prepare states (for case length == 0) lets look legit
-    permute_box1(&state_1, &state_2, &state_3, &state_4);
-    permute_box2(&state_1, &state_2, &state_3, &state_4);
-    permute_box3(&state_1, &state_2, &state_3, &state_4);
-    // If there is any data...
-    if (length > 0)
+    // loop through the buffer in 512 bit chunks
+    for (size_t i = 0; i < length; i += 32)
     {
-        // Iterate over the buffer in 32 byte chunks
-        for (uint32_t i = 0; i < (length - (length % 32)); i += 32)
+        // if there is less than 512 bits left
+        if (length - i < 32)
         {
-            // Load the next 32 bytes into the state
-            state_1 ^= *((uint64_t *)(buffer + i));
-            state_2 ^= *((uint64_t *)(buffer + i + 8));
-            state_3 ^= *((uint64_t *)(buffer + i + 16));
-            state_4 ^= *((uint64_t *)(buffer + i + 24));
-
-            // Perform the rounds
-            for (uint16_t j = 0; j < rounds; j++)
-            {
-                permute_box1(&state_1, &state_2, &state_3, &state_4);
-                permute_box2(&state_1, &state_2, &state_3, &state_4);
-                permute_box3(&state_1, &state_2, &state_3, &state_4);
-            }
+            // pad the remaining bytes with zeros
+            uint8_t chunk[32] = {0};
+            memcpy(chunk, buffer + i, length - i);
+            memcpy(chunk + 28, &length, 4);
+            nino256_transform(ctx, chunk);
         }
-
-        // Process the remaining bytes
-        if (length % 32 != 0)
+        else
         {
-            uint8_t remainingBytes = length % 32;
-            // Load the remaining bytes into the state
-            for (uint8_t i = 0; i < remainingBytes; i++)
-            {
-                *((uint8_t *)(&state_1) + ((i + 0) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_2) + ((i + 1) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_3) + ((i + 2) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_4) + ((i + 3) % 8)) ^= buffer[length - remainingBytes + i];
-            }
-            // Perform the rounds
-            for (uint16_t j = 0; j < rounds; j++)
-            {
-                permute_box1(&state_1, &state_2, &state_3, &state_4);
-                permute_box2(&state_1, &state_2, &state_3, &state_4);
-                permute_box3(&state_1, &state_2, &state_3, &state_4);
-            }
+            // process the next 256 bytes
+            nino256_transform(ctx, buffer + i);
         }
     }
+}
 
-    *((uint64_t *)(hash + 0)) = state_1;
-    *((uint64_t *)(hash + 8)) = state_2;
-    *((uint64_t *)(hash + 16)) = state_3;
-    *((uint64_t *)(hash + 24)) = state_4;
+void nino256_final(nino256_CTX *ctx)
+{
+    // Perform the rounds here [for speed]
+    for (uint16_t j = 0; j < ctx->round_count; j++)
+    {
+        permute_box1(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
+        permute_box2(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
+        permute_box3(&ctx->state[0], &ctx->state[1], &ctx->state[2], &ctx->state[3]);
+    }
+    memcpy(ctx->digest, ctx->state, 32);
+    // clear the state
+    memset(ctx->state, 0, 32);
+}
+
+void nino256sum(const uint8_t *buffer, size_t length, uint8_t *hash)
+{
+    nino256_CTX ctx;
+    nino256_init(&ctx);
+    nino256_update(&ctx, buffer, length);
+    nino256_final(&ctx);
+    memcpy(hash, ctx.digest, 32);
 }
