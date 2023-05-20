@@ -13,7 +13,9 @@
     # ------------------------------------------------------------------------------- #
 */
 
-#include "ninohash.h"
+#include <stdint.h>
+#include <unistd.h>
+#include <stdio.h>
 
 #define ROTRIGHT(a, b) (((a) >> (b)) | ((a) << (64 - (b))))
 #define ROTLEFT(a, b) (((a) << (b)) | ((a) >> (64 - (b))))
@@ -60,62 +62,32 @@ static inline void permute_box3(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t 
     *d = (*d ^ *a) + (*b ^ *c);
 }
 
-void nino256sum(const uint8_t *const buffer, uint32_t length, uint16_t rounds, uint8_t *hash)
+int main()
 {
-    uint64_t state_1 = rounds;
-    uint64_t state_2 = rounds;
-    uint64_t state_3 = rounds;
-    uint64_t state_4 = rounds;
-
-    // Prepare states (for case length == 0) lets look legit
-    permute_box1(&state_1, &state_2, &state_3, &state_4);
-    permute_box2(&state_1, &state_2, &state_3, &state_4);
-    permute_box3(&state_1, &state_2, &state_3, &state_4);
-    // If there is any data...
-    if (length > 0)
+    uint64_t state_1 = 0x27b5af54b4339563;
+    uint64_t state_2 = 0x2f871e900df1b581;
+    uint64_t state_3 = 0x4cd6eb4767103113;
+    uint64_t state_4 = 0xb66a3dd079f530b3;
+    FILE *output = fopen("csprng.bin", "wb");
+    const uint16_t rounds = 2;
+    for (long iteration = 0; iteration < (75000000000 / 32); iteration++)
     {
-        // Iterate over the buffer in 32 byte chunks
-        for (uint32_t i = 0; i < (length - (length % 32)); i += 32)
+        // Perform the rounds
+        for (uint16_t j = 0; j < rounds; j++)
         {
-            // Load the next 32 bytes into the state
-            state_1 ^= *((uint64_t *)(buffer + i));
-            state_2 ^= *((uint64_t *)(buffer + i + 8));
-            state_3 ^= *((uint64_t *)(buffer + i + 16));
-            state_4 ^= *((uint64_t *)(buffer + i + 24));
-
-            // Perform the rounds
-            for (uint16_t j = 0; j < rounds; j++)
-            {
-                permute_box1(&state_1, &state_2, &state_3, &state_4);
-                permute_box2(&state_1, &state_2, &state_3, &state_4);
-                permute_box3(&state_1, &state_2, &state_3, &state_4);
-            }
+            permute_box1(&state_1, &state_2, &state_3, &state_4);
+            permute_box2(&state_1, &state_2, &state_3, &state_4);
+            permute_box3(&state_1, &state_2, &state_3, &state_4);
         }
 
-        // Process the remaining bytes
-        if (length % 32 != 0)
-        {
-            uint8_t remainingBytes = length % 32;
-            // Load the remaining bytes into the state
-            for (uint8_t i = 0; i < remainingBytes; i++)
-            {
-                *((uint8_t *)(&state_1) + ((i + 0) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_2) + ((i + 1) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_3) + ((i + 2) % 8)) ^= buffer[length - remainingBytes + i];
-                *((uint8_t *)(&state_4) + ((i + 3) % 8)) ^= buffer[length - remainingBytes + i];
-            }
-            // Perform the rounds
-            for (uint16_t j = 0; j < rounds; j++)
-            {
-                permute_box1(&state_1, &state_2, &state_3, &state_4);
-                permute_box2(&state_1, &state_2, &state_3, &state_4);
-                permute_box3(&state_1, &state_2, &state_3, &state_4);
-            }
-        }
+        uint8_t digest[32];
+
+        *((uint64_t *)(digest + 0)) = state_1;
+        *((uint64_t *)(digest + 8)) = state_2;
+        *((uint64_t *)(digest + 16)) = state_3;
+        *((uint64_t *)(digest + 24)) = state_4;
+
+        fwrite(digest, 1, 32, output);
     }
-
-    *((uint64_t *)(hash + 0)) = state_1;
-    *((uint64_t *)(hash + 8)) = state_2;
-    *((uint64_t *)(hash + 16)) = state_3;
-    *((uint64_t *)(hash + 24)) = state_4;
+    fclose(output);
 }
