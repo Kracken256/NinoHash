@@ -4,10 +4,7 @@
 
 1. **Design and Architecture**
 2. **Permutation Functions**
-	1. **Permutation Function 1**
-	2. **Permutation Function 2**
-	3. **Permutation Function 3**
-3.  **Design of Permutation Functions**
+3. **Design of Permutation Functions**
 4. **High-Level Mathematics**
 5. **Testing results**
 6. **Performance**
@@ -29,42 +26,7 @@ The permutation functions, `permute_box1`,  `permute_box2`, and  `permute_box3`,
 
 The permutation functions use bitwise operations to achieve their non-linear transformations. The se bitwise operations operate on the state variables to increase the diffusion.
 
-#### Permutation Function 1
-
----
-
-$$\begin{align*}
-d &\leftarrow d \oplus (((a \ll 32) \mathbin{\&} \sim(d \gg 32)) \oplus \sim a) \\
-c &\leftarrow c \oplus (((b \ll 48) \mathbin{\&} \sim(c \gg 16)) \oplus \sim b) \\
-b &\leftarrow b \oplus (((c \ll 32) \mathbin{\&} \sim(b \gg 32)) \oplus \sim c) \\
-a &\leftarrow a \oplus (((d \ll 16) \mathbin{\&} \sim(a \gg 48)) \oplus \sim d) \\
-\end{align*}$$
-
----
-
-#### Permutation Function 2
-
----
-
-$$\begin{align*}
-a &\leftarrow a \oplus \left(\text{ROTRIGHT}((a \oplus b) \mathbin{\&} \sim c, 20) \ll (\text{ROTRIGHT}(d, 12) \mod 14)\right) \\
-b &\leftarrow b \oplus \left(\text{ROTRIGHT}((b \oplus c) \mathbin{\&} \sim d, 26) \ll (\text{ROTRIGHT}(a, 17) \mod 14)\right) \\
-c &\leftarrow c \oplus \left(\text{ROTRIGHT}((c \oplus d) \mathbin{\&} \sim a, 15) \ll (\text{ROTRIGHT}(b, 29) \mod 14)\right) \\
-d &\leftarrow d \oplus \left(\text{ROTRIGHT}((d \oplus a) \mathbin{\&} \sim b, 37) \ll (\text{ROTRIGHT}(c, 47) \mod 14)\right) \\
-\end{align*}$$
-
----
-
-#### Permutation Function 3
-
----
-
-$$ \begin{align*}
-a &\leftarrow a \oplus \left(\text{ROTRIGHT}((a \mathbin{\&} b) \oplus \sim c, d \mod 64) \gg (a \mod 16)\right) \\
-b &\leftarrow b \oplus \left(\text{ROTRIGHT}((b \mathbin{\&} c) \oplus \sim d, c \mod 63) \gg (b \mod 17)\right) \\
-c &\leftarrow c \oplus \left(\text{ROTRIGHT}((c \mathbin{\&} d) \oplus \sim a, b \mod 62) \gg (c \mod 18)\right) \\
-d &\leftarrow d \oplus \left(\text{ROTRIGHT}((d \mathbin{\&} a) \oplus \sim b, a \mod 61) \gg (d \mod 19)\right) \\
-\end{align*}$$
+See the PDF for details (having LaTeX rendering problems)
 
 ---
 
